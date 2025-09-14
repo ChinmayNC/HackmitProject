@@ -11,7 +11,9 @@ interface TimerProps {
   isActive: boolean
   isVisible: boolean
   isFullscreen: boolean
+  isPaused: boolean
   onEnd: () => void
+  onPauseResume: () => void
   onTimeUpdate: (sessionTime: number, focusedTime: number) => void
 }
 
@@ -21,10 +23,11 @@ export function Timer({
   isActive,
   isVisible,
   isFullscreen,
+  isPaused,
   onEnd,
+  onPauseResume,
   onTimeUpdate,
 }: TimerProps) {
-  const [isPaused, setIsPaused] = useState(false)
 
   // Timer logic is now handled in the parent component
 
@@ -74,7 +77,7 @@ export function Timer({
 
         {/* Controls */}
         <div className="flex gap-2 mt-4">
-          <Button variant="outline" size="sm" onClick={() => setIsPaused(!isPaused)} className="flex-1">
+          <Button variant="outline" size="sm" onClick={onPauseResume} className="flex-1">
             {isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
             {isPaused ? "Resume" : "Pause"}
           </Button>

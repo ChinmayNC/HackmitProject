@@ -40,6 +40,26 @@ export default function LockInApp() {
   const [showGuardModal, setShowGuardModal] = useState(false)
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
   const [lastViolationTime, setLastViolationTime] = useState(0)
+  const [pdfContext, setPdfContext] = useState<{ text: string; filename: string } | null>(null)
+  const [isPaused, setIsPaused] = useState(false)
+
+  // Handle PDF text extraction
+  const handlePdfTextExtracted = (text: string, filename: string) => {
+    setPdfContext({ text, filename })
+  }
+
+  // Handle pause/resume
+  const handlePauseResume = () => {
+    if (isPaused) {
+      // Resume - set as focused
+      setIsPaused(false)
+      setIsFocused(true)
+    } else {
+      // Pause - set as unfocused
+      setIsPaused(true)
+      setIsFocused(false)
+    }
+  }
 
   // Timer functionality
   const updateTime = (newSessionTime: number, newFocusedTime: number) => {
@@ -49,7 +69,7 @@ export default function LockInApp() {
 
   // Update focused time based on focus status
   useEffect(() => {
-    if (!isSessionActive) return
+    if (!isSessionActive || isPaused) return
 
     const interval = setInterval(() => {
       setSessionTime(prev => prev + 1)
@@ -60,7 +80,7 @@ export default function LockInApp() {
     }, 1000)
 
     return () => clearInterval(interval)
-  }, [isSessionActive, isFocused])
+  }, [isSessionActive, isFocused, isPaused])
 
   // Handle URL parameters for quick sessions
   useEffect(() => {
@@ -223,7 +243,7 @@ export default function LockInApp() {
           {/* Top Header Section */}
           <div className="border-b border-border/50 bg-card">
             <div className="flex items-center justify-center px-6 py-6">
-              <h1 className="text-3xl font-medium text-foreground flex items-center gap-2">
+              <h1 className="text-4xl font-medium text-foreground flex items-center gap-2">
                 🌱 Lock-In
               </h1>
             </div>
@@ -237,7 +257,7 @@ export default function LockInApp() {
                 <div className="border-b border-border/50 bg-card px-6 py-3">
                 </div>
                 <div className="flex-1 pl-1">
-                  <PdfViewer />
+                  <PdfViewer onPdfTextExtracted={handlePdfTextExtracted} />
                 </div>
               </div>
             </div>
@@ -252,7 +272,9 @@ export default function LockInApp() {
                   isActive={isSessionActive}
                   isVisible={isFocused} // Use focus status instead of visibility
                   isFullscreen={isFocused} // Use focus status instead of fullscreen
+                  isPaused={isPaused}
                   onEnd={requestEndSession}
+                  onPauseResume={handlePauseResume}
                   onTimeUpdate={() => {}} // No longer needed
                 />
               </div>
@@ -264,6 +286,7 @@ export default function LockInApp() {
                   isFullscreen={isFocused}
                   sessionTime={sessionTime}
                   focusedTime={focusedTime}
+                  pdfContext={pdfContext}
                 />
               </div>
             </div>
@@ -318,7 +341,7 @@ export default function LockInApp() {
                 onClick={returnToFullscreen}
                 className="flex-1 bg-primary hover:bg-primary/90"
               >
-                🔒 Return to Fullscreen
+                Return to Fullscreen
               </Button>
               <Button 
                 onClick={() => setShowFullscreenModal(false)}

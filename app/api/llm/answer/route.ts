@@ -2,7 +2,7 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { question, sessionContext } = await request.json()
+    const { question, sessionContext, pdfContext } = await request.json()
 
     // Call Cerebras API
     console.log("Calling Cerebras API...")
@@ -18,17 +18,25 @@ export async function POST(request: NextRequest) {
             role: "system",
             content: `You are a professional study assistant and academic coach. The user is currently in a ${Math.floor(sessionContext.sessionTime / 60)} minute study session with ${sessionContext.focusRate}% focus rate. 
 
+${pdfContext ? `The user is studying from a PDF document titled "${pdfContext.filename}". Here is the content of their study material:
+
+"${pdfContext.text}"
+
+Use this content to provide contextually relevant help and answer questions about the material they're studying.` : ''}
+
 Your role is to:
 - Provide clear, actionable study advice
-- Help with academic questions and concepts
+- Help with academic questions and concepts about their study material
 - Offer motivation and focus techniques
 - Suggest effective learning strategies
 - Answer questions about study methods, time management, and productivity
+- Help explain concepts from their PDF content when relevant
 
 Guidelines:
 - Be professional and encouraging
 - Keep responses concise (2-3 sentences max)
 - Focus on practical, actionable advice
+- Reference specific content from their PDF when relevant
 - Avoid emojis, casual language, or excessive enthusiasm
 - Use a supportive but academic tone
 - If asked about focus issues, provide specific techniques like Pomodoro, active recall, or spaced repetition`

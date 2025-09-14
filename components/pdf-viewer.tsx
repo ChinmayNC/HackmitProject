@@ -16,12 +16,17 @@ const Page = dynamic(() => import("react-pdf").then((mod) => mod.Page), {
   loading: () => <div className="flex items-center justify-center p-4"><Loader2 className="w-4 h-4 animate-spin" /></div>
 })
 
-export function PdfViewer() {
+interface PdfViewerProps {
+  onPdfTextExtracted?: (text: string, filename: string) => void
+}
+
+export function PdfViewer({ onPdfTextExtracted }: PdfViewerProps) {
   const [pdfFiles, setPdfFiles] = useState<File[]>([])
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [isPdfReady, setIsPdfReady] = useState(false)
   const [numPages, setNumPages] = useState(0)
   const [currentPage, setCurrentPage] = useState(1)
+  const [extractedText, setExtractedText] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Set up PDF.js worker
@@ -38,7 +43,35 @@ export function PdfViewer() {
     setupPdf()
   }, [])
 
-  const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
+  // Extract text from PDF
+  const extractTextFromPdf = async (file: File) => {
+    try {
+      const pdfjsModule = await import("react-pdf")
+      const arrayBuffer = await file.arrayBuffer()
+      const pdf = await pdfjsModule.pdfjs.getDocument(arrayBuffer).promise
+      
+      let fullText = ""
+      
+      for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+        const page = await pdf.getPage(pageNum)
+        const textContent = await page.getTextContent()
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(" ")
+        fullText += pageText + "\n"
+      }
+      
+      setExtractedText(fullText)
+      onPdfTextExtracted?.(fullText, file.name)
+      
+      return fullText
+    } catch (error) {
+      console.error("Error extracting text from PDF:", error)
+      return ""
+    }
+  }
+
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files) return
 
@@ -48,15 +81,22 @@ export function PdfViewer() {
       // Auto-select the first file if none is selected
       if (!selectedFile && newFiles.length > 0) {
         setSelectedFile(newFiles[0])
+        // Extract text from the first file
+        extractTextFromPdf(newFiles[0])
       }
       return newFiles
     })
+
+    // Extract text from all uploaded files
+    for (const file of pdfFiles) {
+      await extractTextFromPdf(file)
+    }
 
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
-  }, [selectedFile])
+  }, [selectedFile, onPdfTextExtracted])
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setNumPages(numPages)

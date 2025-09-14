@@ -20,9 +20,10 @@ interface StudyBuddyProps {
   isFullscreen: boolean
   sessionTime: number
   focusedTime: number
+  pdfContext?: { text: string; filename: string } | null
 }
 
-export function StudyBuddy({ isVisible, isFullscreen, sessionTime, focusedTime }: StudyBuddyProps) {
+export function StudyBuddy({ isVisible, isFullscreen, sessionTime, focusedTime, pdfContext }: StudyBuddyProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: "1",
@@ -75,6 +76,10 @@ export function StudyBuddy({ isVisible, isFullscreen, sessionTime, focusedTime }
             focusedTime,
             focusRate: sessionTime > 0 ? Math.round((focusedTime / sessionTime) * 100) : 100,
           },
+          pdfContext: pdfContext ? {
+            filename: pdfContext.filename,
+            text: pdfContext.text.substring(0, 4000) // Limit to 4000 chars to avoid token limits
+          } : null,
         }),
       })
 
