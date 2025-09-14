@@ -28,13 +28,15 @@ interface SessionGuardModalProps {
   stats: SessionStats
   onApprove: () => void
   onDeny: (feedback: string) => void
+  onClose: () => void
 }
 
-export function SessionGuardModal({ isOpen, stats, onApprove, onDeny }: SessionGuardModalProps) {
+export function SessionGuardModal({ isOpen, stats, onApprove, onDeny, onClose }: SessionGuardModalProps) {
   const [reflection, setReflection] = useState("")
   const [checklist, setChecklist] = useState<SessionGoal[]>(stats.checklist)
   const [isEvaluating, setIsEvaluating] = useState(false)
   const [aiResponse, setAiResponse] = useState<{ allow: boolean; feedback: string; roast: string } | null>(null)
+  const [hasEvaluated, setHasEvaluated] = useState(false)
 
   const focusPercentage = stats.sessionTime > 0 ? Math.round((stats.focusedTime / stats.sessionTime) * 100) : 100
   const targetPercentage = Math.round((stats.sessionTime / (stats.targetDuration * 60)) * 100)
@@ -57,7 +59,7 @@ export function SessionGuardModal({ isOpen, stats, onApprove, onDeny }: SessionG
     setIsEvaluating(true)
 
     try {
-      const response = await fetch("/api/llm/guard", {
+      const response = await fetch("/api/llm/evaluate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -104,11 +106,12 @@ export function SessionGuardModal({ isOpen, stats, onApprove, onDeny }: SessionG
       })
     } finally {
       setIsEvaluating(false)
+      setHasEvaluated(true)
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={() => {}}>
+    <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-lg" onPointerDownOutside={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -189,31 +192,41 @@ export function SessionGuardModal({ isOpen, stats, onApprove, onDeny }: SessionG
                 ) : (
                   <AlertCircle className="w-4 h-4 text-yellow-600" />
                 )}
-                <span className="font-medium">{aiResponse.allow ? "Session Approved!" : "Not Quite There"}</span>
+                <span className="font-medium">{aiResponse.allow ? "Approved!" : "Not Ready"}</span>
               </div>
-              <p className="text-sm mb-2">{aiResponse.feedback}</p>
-              {aiResponse.roast && <p className="text-sm italic text-muted-foreground">"{aiResponse.roast}"</p>}
+              <p className="text-sm">{aiResponse.feedback}</p>
             </Card>
           )}
 
           {/* Actions */}
           <div className="flex gap-2">
             {!aiResponse?.allow && (
-              <Button
-                onClick={evaluateSession}
-                disabled={isEvaluating || !reflection.trim()}
-                className="flex-1"
-                variant={aiResponse && !aiResponse.allow ? "outline" : "default"}
-              >
-                {isEvaluating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    Evaluating...
-                  </>
-                ) : (
-                  "Request to End Session"
+              <>
+                <Button
+                  onClick={evaluateSession}
+                  disabled={isEvaluating || !reflection.trim()}
+                  className="flex-1"
+                  variant="outline"
+                >
+                  {isEvaluating ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Evaluating...
+                    </>
+                  ) : (
+                    "Evaluate Session"
+                  )}
+                </Button>
+                {hasEvaluated && (
+                  <Button
+                    onClick={onApprove}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    End Anyway
+                  </Button>
                 )}
-              </Button>
+              </>
             )}
 
             {aiResponse?.allow && (
@@ -226,7 +239,7 @@ export function SessionGuardModal({ isOpen, stats, onApprove, onDeny }: SessionG
 
           {aiResponse && !aiResponse.allow && (
             <p className="text-xs text-center text-muted-foreground">
-              Tip: Provide more detailed reflection or reach 80% of your time goal to end the session
+              Add more detail or reach 80% of your time goal
             </p>
           )}
         </div>

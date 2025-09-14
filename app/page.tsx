@@ -8,6 +8,7 @@ import { PdfViewer } from "@/components/pdf-viewer"
 import { Timer } from "@/components/timer"
 import { SessionSetupModal } from "@/components/session-setup-modal"
 import { SessionGuardModal } from "@/components/session-guard-modal"
+import { FocusLossModal } from "@/components/focus-loss-modal"
 import { PWAInstallButton } from "@/components/pwa-install-button"
 import { WakeLockManager } from "@/components/wake-lock-manager"
 import { ShortcutsIntegration } from "@/components/shortcuts-integration"
@@ -32,6 +33,9 @@ export default function LockInApp() {
   const [violations, setViolations] = useState(0)
   const [isVisible, setIsVisible] = useState(true)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showFocusLossModal, setShowFocusLossModal] = useState(false)
+  const [showFullscreenModal, setShowFullscreenModal] = useState(false)
+  const [isFocused, setIsFocused] = useState(true) // Track if user is actually focused
   const [showSetupModal, setShowSetupModal] = useState(false)
   const [showGuardModal, setShowGuardModal] = useState(false)
   const [sessionData, setSessionData] = useState<SessionData | null>(null)
@@ -42,6 +46,21 @@ export default function LockInApp() {
     setSessionTime(newSessionTime)
     setFocusedTime(newFocusedTime)
   }
+
+  // Update focused time based on focus status
+  useEffect(() => {
+    if (!isSessionActive) return
+
+    const interval = setInterval(() => {
+      setSessionTime(prev => prev + 1)
+      // Only increment focused time if actually focused
+      if (isFocused) {
+        setFocusedTime(prev => prev + 1)
+      }
+    }, 1000)
+
+    return () => clearInterval(interval)
+  }, [isSessionActive, isFocused])
 
   // Handle URL parameters for quick sessions
   useEffect(() => {
@@ -58,19 +77,20 @@ export default function LockInApp() {
     }
   }, [isSessionActive])
 
-  // Track visibility and fullscreen changes
+  // Track visibility changes
   useEffect(() => {
     const handleVisibilityChange = () => {
       const newIsVisible = !document.hidden
       setIsVisible(newIsVisible)
 
-      // Track violations when losing focus during active session
+      // Show roast modal when losing focus during active session
       if (isSessionActive && !newIsVisible) {
         const now = Date.now()
-        if (now - lastViolationTime > 5000) {
-          // Only count if 5+ seconds since last violation
+        if (now - lastViolationTime > 2000) { // Reduced to 2 seconds
           setViolations((prev) => prev + 1)
           setLastViolationTime(now)
+          setIsFocused(false) // Set to unfocused
+          setShowFocusLossModal(true)
         }
       }
     }
@@ -78,14 +98,10 @@ export default function LockInApp() {
     const handleFullscreenChange = () => {
       const newIsFullscreen = !!document.fullscreenElement
       setIsFullscreen(newIsFullscreen)
-
-      // Track violations when exiting fullscreen during active session
+      
+      // Show fullscreen modal if user exits fullscreen during active session
       if (isSessionActive && !newIsFullscreen && isVisible) {
-        const now = Date.now()
-        if (now - lastViolationTime > 5000) {
-          setViolations((prev) => prev + 1)
-          setLastViolationTime(now)
-        }
+        setShowFullscreenModal(true)
       }
     }
 
@@ -147,6 +163,30 @@ export default function LockInApp() {
     console.log("Session end denied:", feedback)
   }
 
+  const lockBackIn = async () => {
+    try {
+      // Request fullscreen
+      await document.documentElement.requestFullscreen()
+      setIsFocused(true) // Set back to focused
+      setShowFocusLossModal(false)
+    } catch (error) {
+      console.log("Fullscreen not supported or denied")
+      setIsFocused(true) // Set back to focused even if fullscreen fails
+      setShowFocusLossModal(false)
+    }
+  }
+
+  const returnToFullscreen = async () => {
+    try {
+      // Request fullscreen
+      await document.documentElement.requestFullscreen()
+      setShowFullscreenModal(false)
+    } catch (error) {
+      console.log("Fullscreen not supported or denied")
+      setShowFullscreenModal(false)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background text-foreground">
       {/* PWA Install Banner */}
@@ -182,73 +222,46 @@ export default function LockInApp() {
         <div className="h-screen flex flex-col">
           {/* Top Header Section */}
           <div className="border-b border-border/50 bg-card">
-            <div className="flex items-center justify-between px-6 py-4">
-              <h1 className="text-2xl font-medium text-foreground">Lock-In</h1>
-              <div className="flex items-center gap-6">
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Locked in for:</div>
-                  <div className="text-2xl font-medium text-foreground">
-                    {Math.floor(sessionTime / 3600)
-                      .toString()
-                      .padStart(2, "0")}
-                    :
-                    {Math.floor((sessionTime % 3600) / 60)
-                      .toString()
-                      .padStart(2, "0")}
-                    :{(sessionTime % 60).toString().padStart(2, "0")}
-                  </div>
-                </div>
-                <Button
-                  onClick={requestEndSession}
-                  variant="outline"
-                  className="border-border hover:bg-secondary bg-transparent"
-                >
-                  End Session
-                </Button>
-              </div>
+            <div className="flex items-center justify-center px-6 py-6">
+              <h1 className="text-3xl font-medium text-foreground flex items-center gap-2">
+                🌱 Lock-In
+              </h1>
             </div>
           </div>
 
           {/* Main Content Area */}
-          <div className="flex-1 flex">
+          <div className="flex-1 flex min-h-0">
             {/* PDF Viewer Section (Left) */}
-            <div className="flex-1 border-r border-border/50">
-              <div className="h-full flex flex-col">
+            <div className="flex-1 border-r border-border/50 min-h-0">
+              <div className="h-full flex flex-col min-h-0">
                 <div className="border-b border-border/50 bg-card px-6 py-3">
-                  <h2 className="text-lg font-medium text-foreground">PDF Viewer</h2>
                 </div>
-                <div className="flex-1">
+                <div className="flex-1 pl-1">
                   <PdfViewer />
                 </div>
               </div>
             </div>
 
             {/* Right Sidebar */}
-            <div className="w-96 bg-sidebar flex flex-col">
+            <div className="w-96 bg-sidebar flex flex-col min-h-0">
               {/* Timer Section */}
-              <div className="border-b border-sidebar-border bg-sidebar px-6 py-3">
-                <h2 className="text-lg font-medium text-sidebar-foreground">Session Timer</h2>
-              </div>
-              <div className="p-4">
+              <div className="px-4 pt-4">
                 <Timer
                   sessionTime={sessionTime}
                   focusedTime={focusedTime}
                   isActive={isSessionActive}
-                  isVisible={isVisible}
-                  isFullscreen={isFullscreen}
+                  isVisible={isFocused} // Use focus status instead of visibility
+                  isFullscreen={isFocused} // Use focus status instead of fullscreen
                   onEnd={requestEndSession}
-                  onTimeUpdate={updateTime}
+                  onTimeUpdate={() => {}} // No longer needed
                 />
               </div>
 
               {/* Study Buddy Section */}
-              <div className="border-t border-sidebar-border bg-sidebar px-6 py-3">
-                <h2 className="text-lg font-medium text-sidebar-foreground">Study Buddy</h2>
-              </div>
-              <div className="flex-1">
+              <div className="flex-1 min-h-0 max-h-[calc(100vh-200px)]">
                 <StudyBuddy
-                  isVisible={isVisible}
-                  isFullscreen={isFullscreen}
+                  isVisible={isFocused}
+                  isFullscreen={isFocused}
                   sessionTime={sessionTime}
                   focusedTime={focusedTime}
                 />
@@ -275,7 +288,48 @@ export default function LockInApp() {
           }}
           onApprove={approveEndSession}
           onDeny={denyEndSession}
+          onClose={() => setShowGuardModal(false)}
         />
+      )}
+
+      {/* Focus Loss Modal */}
+      {showFocusLossModal && (
+        <FocusLossModal 
+          isOpen={showFocusLossModal}
+          onLockBackIn={lockBackIn}
+          onStayDistracted={() => setShowFocusLossModal(false)}
+          sessionTime={sessionTime}
+          focusedTime={focusedTime}
+          violations={violations}
+        />
+      )}
+
+      {/* Fullscreen Modal */}
+      {showFullscreenModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-card border border-border rounded-lg p-8 max-w-md mx-4 text-center">
+            <div className="text-6xl mb-4">🖥️</div>
+            <h2 className="text-2xl font-bold mb-4">Not in Fullscreen</h2>
+            <p className="text-muted-foreground mb-6">
+              You've exited fullscreen mode. For the best focus experience, please return to fullscreen to continue your session.
+            </p>
+            <div className="flex gap-3">
+              <Button 
+                onClick={returnToFullscreen}
+                className="flex-1 bg-primary hover:bg-primary/90"
+              >
+                🔒 Return to Fullscreen
+              </Button>
+              <Button 
+                onClick={() => setShowFullscreenModal(false)}
+                variant="outline"
+                className="flex-1"
+              >
+                Continue in Window
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

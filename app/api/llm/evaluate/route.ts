@@ -2,10 +2,15 @@ import { type NextRequest, NextResponse } from "next/server"
 
 export async function POST(request: NextRequest) {
   try {
-    const { sessionTime, focusedTime, violations, focusRate } = await request.json()
+    const { goalMinutes, elapsedSeconds, violations, reflection, checklistComplete, focusPercentage } =
+      await request.json()
 
-    // Generate roast message using Cerebras API
-    let roastMessage = "Really? Already? Time to get serious about your goals!"
+    // Generate evaluation using Cerebras API
+    let evaluation = {
+      allow: false,
+      feedback: "Please provide more detailed reflection on what you learned or accomplished.",
+      roast: "Come on, give me more than that! What did you actually learn?"
+    }
     
     try {
       const cerebrasResponse = await fetch("https://api.cerebras.ai/v1/chat/completions", {
@@ -18,57 +23,76 @@ export async function POST(request: NextRequest) {
           messages: [
             {
               role: "system",
-              content: `You are a motivational study coach. The user just lost focus during their study session. They've been studying for ${Math.floor(sessionTime / 60)} minutes with ${focusRate}% focus rate and ${violations} distractions. 
-
-Give them a short, motivating message to get them back on track. Be encouraging but firm. Keep it under 100 characters and avoid emojis. Focus on motivation and getting back to work.`
+              content: `You are a professional study session evaluator. The user wants to end their study session. Evaluate based on:
+              - Time goal: ${goalMinutes} minutes (completed: ${Math.floor(elapsedSeconds / 60)} minutes, ${Math.round((elapsedSeconds / 60 / goalMinutes) * 100)}%)
+              - Focus rate: ${focusPercentage}%
+              - Distractions: ${violations}
+              - Reflection quality: ${reflection.length} characters
+              - Checklist completion: ${checklistComplete ? 'Yes' : 'No'}
+              
+              Decide if they should be allowed to end the session. If yes, give encouraging feedback. If no, give constructive feedback and a motivating message. 
+              
+              Guidelines:
+              - Be professional and supportive
+              - Avoid emojis or casual language
+              - Focus on academic progress and learning
+              - Keep feedback constructive and actionable
+              
+              Respond with JSON: {"allow": boolean, "feedback": "string", "roast": "string"}`
             },
             {
               role: "user",
-              content: "I just lost focus and got distracted during my study session."
+              content: `I want to end my study session. Here's my reflection: "${reflection}"`
             }
           ],
           model: "llama-4-scout-17b-16e-instruct",
-          max_completion_tokens: 100,
-          temperature: 0.8,
-          top_p: 0.9,
+          max_completion_tokens: 300,
+          temperature: 0.7,
+          top_p: 0.8,
           stream: false
         }),
       })
 
       if (cerebrasResponse.ok) {
         const data = await cerebrasResponse.json()
-        roastMessage = data.choices?.[0]?.message?.content || roastMessage
+        const responseText = data.choices?.[0]?.message?.content || ""
+        
+        try {
+          // Try to parse JSON response
+          const parsed = JSON.parse(responseText)
+          evaluation = parsed
+        } catch {
+          // If not JSON, use fallback evaluation
+          evaluation = evaluateSessionFallback({
+            goalMinutes,
+            elapsedSeconds,
+            violations,
+            reflection,
+            checklistComplete,
+            focusPercentage,
+          })
+        }
       }
     } catch (apiError) {
       console.error("Cerebras API error:", apiError)
-      // Use fallback roast messages
-      const fallbackRoasts = [
-        "Really? Already? Your attention span is shorter than a goldfish's memory!",
-        "Come on! You couldn't even focus for 2 seconds? Time to get serious!",
-        "Distraction detected! Your future self will thank you for staying focused.",
-        "Focus slipping? Remember why you started this session!",
-        "That was quick! Ready to dive back into deep work?",
-      ]
-      roastMessage = fallbackRoasts[Math.floor(Math.random() * fallbackRoasts.length)]
+      evaluation = evaluateSessionFallback({
+        goalMinutes,
+        elapsedSeconds,
+        violations,
+        reflection,
+        checklistComplete,
+        focusPercentage,
+      })
     }
 
-    return NextResponse.json({ message: roastMessage })
+    return NextResponse.json(evaluation)
   } catch (error) {
-    console.error("Error in LLM guard API:", error)
-    return NextResponse.json({ error: "Failed to generate roast message" }, { status: 500 })
+    console.error("Error in LLM evaluate API:", error)
+    return NextResponse.json({ error: "Failed to evaluate session" }, { status: 500 })
   }
 }
 
-interface SessionEvaluation {
-  goalMinutes: number
-  elapsedSeconds: number
-  violations: number
-  reflection: string
-  checklistComplete: boolean
-  focusPercentage: number
-}
-
-function evaluateSession(data: SessionEvaluation) {
+function evaluateSessionFallback(data: any) {
   const { goalMinutes, elapsedSeconds, violations, reflection, checklistComplete, focusPercentage } = data
 
   const elapsedMinutes = elapsedSeconds / 60
@@ -93,8 +117,7 @@ function evaluateSession(data: SessionEvaluation) {
     feedback = `Excellent! You completed ${Math.round(timeGoalPercentage)}% of your time goal with ${focusPercentage}% focus. Well done!`
   } else if (goodReflection && decentFocus) {
     allow = true
-    feedback =
-      "Great reflection! You've clearly thought about your learning process. Your detailed insights show real engagement with the material."
+    feedback = "Great reflection! You've clearly thought about your learning process. Your detailed insights show real engagement with the material."
   } else if (checklistComplete && excellentFocus) {
     allow = true
     feedback = "Outstanding focus and task completion! You've demonstrated excellent self-discipline and productivity."

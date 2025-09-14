@@ -4,14 +4,67 @@ export async function POST(request: NextRequest) {
   try {
     const { question, sessionContext } = await request.json()
 
-    // For now, return intelligent fallback responses
-    // In production, this would call Cerebras LLM API
-    const responses = generateContextualResponse(question, sessionContext)
+    // Call Cerebras API
+    console.log("Calling Cerebras API...")
+    const cerebrasResponse = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer csk-96hc22m8fvpx4w8k55drne86r5pvm4wcpce9thhenecpy339`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        messages: [
+          {
+            role: "system",
+            content: `You are a professional study assistant and academic coach. The user is currently in a ${Math.floor(sessionContext.sessionTime / 60)} minute study session with ${sessionContext.focusRate}% focus rate. 
 
-    return NextResponse.json({ text: responses })
+Your role is to:
+- Provide clear, actionable study advice
+- Help with academic questions and concepts
+- Offer motivation and focus techniques
+- Suggest effective learning strategies
+- Answer questions about study methods, time management, and productivity
+
+Guidelines:
+- Be professional and encouraging
+- Keep responses concise (2-3 sentences max)
+- Focus on practical, actionable advice
+- Avoid emojis, casual language, or excessive enthusiasm
+- Use a supportive but academic tone
+- If asked about focus issues, provide specific techniques like Pomodoro, active recall, or spaced repetition`
+          },
+          {
+            role: "user",
+            content: question
+          }
+        ],
+        model: "llama-4-scout-17b-16e-instruct",
+        max_completion_tokens: 200,
+        temperature: 0.7,
+        top_p: 0.8,
+        stream: false
+      }),
+    })
+
+    console.log("Cerebras API response status:", cerebrasResponse.status)
+    
+    if (!cerebrasResponse.ok) {
+      const errorText = await cerebrasResponse.text()
+      console.error("Cerebras API error:", cerebrasResponse.status, errorText)
+      throw new Error(`Cerebras API error: ${cerebrasResponse.status} - ${errorText}`)
+    }
+
+    const data = await cerebrasResponse.json()
+    console.log("Cerebras API response data:", data)
+    const aiResponse = data.choices?.[0]?.message?.content || generateContextualResponse(question, sessionContext)
+
+    return NextResponse.json({ text: aiResponse })
   } catch (error) {
     console.error("Error in LLM answer API:", error)
-    return NextResponse.json({ error: "Failed to generate response" }, { status: 500 })
+    // Fallback to contextual responses if API fails
+    const { question, sessionContext } = await request.json()
+    const fallbackResponse = generateContextualResponse(question, sessionContext)
+    return NextResponse.json({ text: fallbackResponse })
   }
 }
 
