@@ -13,9 +13,14 @@ import { Upload, ZoomIn, ZoomOut, RotateCw, ChevronLeft, ChevronRight, X, FileTe
 import dynamic from "next/dynamic"
 
 // Dynamically import react-pdf to avoid SSR issues
-const Document = dynamic(() => import("react-pdf").then((mod) => mod.Document), { ssr: false })
-const Page = dynamic(() => import("react-pdf").then((mod) => mod.Page), { ssr: false })
-const pdfjs = dynamic(() => import("react-pdf").then((mod) => mod.pdfjs), { ssr: false })
+const Document = dynamic(() => import("react-pdf").then((mod) => mod.Document), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-8"><Loader2 className="w-6 h-6 animate-spin mr-2" />Loading PDF viewer...</div>
+})
+const Page = dynamic(() => import("react-pdf").then((mod) => mod.Page), { 
+  ssr: false,
+  loading: () => <div className="flex items-center justify-center p-4"><Loader2 className="w-4 h-4 animate-spin" /></div>
+})
 
 interface PdfTab {
   id: string
@@ -28,6 +33,7 @@ interface PdfTab {
   rotation: number
   loading: boolean
   error: string | null
+  useFallback: boolean
 }
 
 interface HighlightPopoverProps {
@@ -115,14 +121,29 @@ export function PdfViewer() {
   const [selectedText, setSelectedText] = useState<string>("")
   const [popoverPosition, setPopoverPosition] = useState<{ x: number; y: number } | null>(null)
   const [isPdfReady, setIsPdfReady] = useState(false)
+  const [debugInfo, setDebugInfo] = useState<string>("")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Set up PDF.js worker on client side
   useEffect(() => {
     const setupPdf = async () => {
-      const pdfjsModule = await import("react-pdf")
-      pdfjsModule.pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsModule.pdfjs.version}/build/pdf.worker.min.js`
-      setIsPdfReady(true)
+      try {
+        setDebugInfo("Loading PDF.js library...")
+        const pdfjsModule = await import("react-pdf")
+        setDebugInfo(`PDF.js version: ${pdfjsModule.pdfjs.version}`)
+        
+        // Use a more reliable worker URL
+        const workerUrl = `https://unpkg.com/pdfjs-dist@${pdfjsModule.pdfjs.version}/build/pdf.worker.min.js`
+        pdfjsModule.pdfjs.GlobalWorkerOptions.workerSrc = workerUrl
+        setDebugInfo(`Worker URL: ${workerUrl}`)
+        
+        setIsPdfReady(true)
+        setDebugInfo("PDF.js ready!")
+      } catch (error) {
+        console.error("Failed to setup PDF.js:", error)
+        setDebugInfo(`PDF.js setup failed: ${error}`)
+        setIsPdfReady(false)
+      }
     }
     setupPdf()
   }, [])
@@ -145,10 +166,22 @@ export function PdfViewer() {
           rotation: 0,
           loading: true,
           error: null,
+          useFallback: false,
         }
 
         setPdfTabs((prev) => [...prev, newTab])
         setActiveTab(newTab.id)
+
+        // Set a timeout to switch to fallback if PDF doesn't load within 10 seconds
+        setTimeout(() => {
+          setPdfTabs((prev) => 
+            prev.map((tab) => 
+              tab.id === newTab.id && tab.loading 
+                ? { ...tab, useFallback: true, loading: false }
+                : tab
+            )
+          )
+        }, 10000)
       }
     })
 
@@ -206,9 +239,18 @@ export function PdfViewer() {
   }, [updateTab])
 
   const onDocumentLoadError = useCallback((error: Error, tabId: string) => {
+    console.error("PDF load error:", error)
     updateTab(tabId, {
       loading: false,
       error: error.message,
+    })
+  }, [updateTab])
+
+  const switchToFallback = useCallback((tabId: string) => {
+    updateTab(tabId, {
+      useFallback: true,
+      loading: false,
+      error: null,
     })
   }, [updateTab])
 
@@ -227,6 +269,13 @@ export function PdfViewer() {
           <input ref={fileInputRef} type="file" accept=".pdf" multiple onChange={handleFileUpload} className="hidden" />
         </div>
       </div>
+
+      {/* Debug Info */}
+      {process.env.NODE_ENV === 'development' && debugInfo && (
+        <div className="px-4 py-2 bg-muted text-xs text-muted-foreground border-b">
+          Debug: {debugInfo}
+        </div>
+      )}
 
       {pdfTabs.length === 0 ? (
         // Empty State
@@ -378,13 +427,41 @@ export function PdfViewer() {
                       </div>
                     )}
 
-                    {tab.error && (
+                    {tab.error && !tab.useFallback && (
                       <div className="flex flex-col items-center gap-4 p-8">
                         <FileText className="w-12 h-12 text-destructive" />
                         <div className="text-center">
                           <p className="font-medium text-destructive">Failed to load PDF</p>
                           <p className="text-sm text-muted-foreground mt-1">{tab.error}</p>
+                          <Button 
+                            onClick={() => switchToFallback(tab.id)} 
+                            variant="outline" 
+                            className="mt-4"
+                          >
+                            Try Fallback Viewer
+                          </Button>
                         </div>
+                      </div>
+                    )}
+
+                    {tab.useFallback && (
+                      <div className="w-full h-full">
+                        <div className="flex items-center justify-between p-2 border-b bg-secondary/50">
+                          <span className="text-sm text-muted-foreground">Fallback PDF Viewer</span>
+                          <Button 
+                            onClick={() => updateTab(tab.id, { useFallback: false, loading: true })}
+                            variant="outline" 
+                            size="sm"
+                          >
+                            Try Advanced Viewer
+                          </Button>
+                        </div>
+                        <iframe
+                          src={tab.fileUrl}
+                          className="w-full h-full border-0"
+                          title={tab.name}
+                          style={{ height: 'calc(100% - 40px)' }}
+                        />
                       </div>
                     )}
 
@@ -418,6 +495,13 @@ export function PdfViewer() {
                             width={800}
                             renderTextLayer={true}
                             renderAnnotationLayer={true}
+                            onLoadError={(error) => {
+                              console.error("Page load error:", error)
+                              updateTab(tab.id, {
+                                loading: false,
+                                error: `Failed to load page ${tab.currentPage}: ${error.message}`,
+                              })
+                            }}
                           />
                         </Document>
                       </div>
@@ -427,6 +511,7 @@ export function PdfViewer() {
                       <div className="flex flex-col items-center gap-4 p-8">
                         <Loader2 className="w-8 h-8 animate-spin text-primary" />
                         <p className="text-sm text-muted-foreground">Initializing PDF viewer...</p>
+                        <p className="text-xs text-muted-foreground">This may take a moment on first load</p>
                       </div>
                     )}
                   </div>
