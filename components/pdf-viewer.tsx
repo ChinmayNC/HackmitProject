@@ -3,7 +3,8 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Upload, FileText, Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react"
+import { Upload, FileText, Loader2, ChevronLeft, ChevronRight, ZoomIn, ZoomOut, X } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import dynamic from "next/dynamic"
 
 // Dynamically import react-pdf to avoid SSR issues
@@ -18,7 +19,7 @@ const Page = dynamic(() => import("react-pdf").then((mod) => mod.Page), {
 
 export function PdfViewer() {
   const [pdfFiles, setPdfFiles] = useState<File[]>([])
-  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [activeTab, setActiveTab] = useState<string>("")
   const [isPdfReady, setIsPdfReady] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(0)
@@ -43,14 +44,27 @@ export function PdfViewer() {
     const files = event.target.files
     if (!files) return
 
-    const pdfFiles = Array.from(files).filter(file => file.type === "application/pdf")
-    setPdfFiles(prev => [...prev, ...pdfFiles])
+    const newPdfFiles = Array.from(files).filter(file => file.type === "application/pdf")
+    setPdfFiles(prev => [...prev, ...newPdfFiles])
+    
+    // Set the first new file as active tab
+    if (newPdfFiles.length > 0 && !activeTab) {
+      setActiveTab(newPdfFiles[0].name)
+    }
 
     // Reset file input
     if (fileInputRef.current) {
       fileInputRef.current.value = ""
     }
-  }, [])
+  }, [activeTab])
+
+  const closeTab = useCallback((fileName: string) => {
+    setPdfFiles(prev => prev.filter(file => file.name !== fileName))
+    if (activeTab === fileName) {
+      const remainingFiles = pdfFiles.filter(file => file.name !== fileName)
+      setActiveTab(remainingFiles.length > 0 ? remainingFiles[0].name : "")
+    }
+  }, [activeTab, pdfFiles])
 
   const onDocumentLoadSuccess = useCallback(({ numPages }: { numPages: number }) => {
     setTotalPages(numPages)
@@ -80,7 +94,7 @@ export function PdfViewer() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 p-4">
+      <div className="flex-1 flex flex-col">
         {pdfFiles.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center space-y-4">
@@ -98,111 +112,107 @@ export function PdfViewer() {
             </div>
           </div>
         ) : (
-          <div className="space-y-4">
-            <h3 className="text-lg font-medium">Uploaded PDFs:</h3>
-            <div className="grid grid-cols-1 gap-2">
-              {pdfFiles.map((file, index) => (
-                <div 
-                  key={index} 
-                  className={`flex items-center gap-2 p-2 border rounded cursor-pointer hover:bg-secondary ${
-                    selectedFile === file ? 'bg-secondary border-primary' : ''
-                  }`}
-                  onClick={() => setSelectedFile(file)}
-                >
-                  <FileText className="w-4 h-4" />
-                  <span className="flex-1">{file.name}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </span>
-                </div>
-              ))}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
+            {/* Tab List */}
+            <div className="border-b px-4">
+              <TabsList className="w-full justify-start h-auto p-1">
+                {pdfFiles.map((file) => (
+                  <div key={file.name} className="flex items-center">
+                    <TabsTrigger value={file.name} className="flex items-center gap-2 max-w-48">
+                      <FileText className="w-4 h-4" />
+                      <span className="truncate">{file.name}</span>
+                    </TabsTrigger>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => closeTab(file.name)} 
+                      className="w-6 h-6 ml-1"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                ))}
+              </TabsList>
             </div>
-            
-            {/* PDF Viewer */}
-            {selectedFile && isPdfReady && (
-              <div className="mt-4 border rounded p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="text-lg font-medium">Preview: {selectedFile.name}</h4>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      Page {currentPage} of {totalPages}
-                    </span>
+
+            {/* PDF Content for each tab */}
+            {pdfFiles.map((file) => (
+              <TabsContent key={file.name} value={file.name} className="flex-1 m-0 p-4">
+                {isPdfReady ? (
+                  <div className="h-full flex flex-col">
+                    {/* Controls */}
+                    <div className="flex items-center justify-between mb-4 p-2 bg-gray-50 rounded">
+                      {/* Page Navigation */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageChange(currentPage - 1)}
+                          disabled={currentPage <= 1}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm min-w-20 text-center">
+                          {currentPage} / {totalPages}
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handlePageChange(currentPage + 1)}
+                          disabled={currentPage >= totalPages}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </Button>
+                      </div>
+                      
+                      {/* Zoom Controls */}
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleZoomChange(zoom - 25)}
+                        >
+                          <ZoomOut className="w-4 h-4" />
+                        </Button>
+                        <span className="text-sm min-w-12 text-center">{zoom}%</span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleZoomChange(zoom + 25)}
+                        >
+                          <ZoomIn className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    
+                    {/* PDF Content - Full Height */}
+                    <div className="flex-1 bg-white border rounded overflow-auto">
+                      <Document
+                        file={file}
+                        onLoadSuccess={onDocumentLoadSuccess}
+                        loading={<div className="flex items-center justify-center p-8"><Loader2 className="w-6 h-6 animate-spin mr-2" />Loading PDF...</div>}
+                        error={<div className="flex items-center justify-center p-8 text-red-500">Failed to load PDF</div>}
+                      >
+                        <Page 
+                          pageNumber={currentPage} 
+                          width={800 * (zoom / 100)}
+                          renderTextLayer={true}
+                          renderAnnotationLayer={true}
+                        />
+                      </Document>
+                    </div>
                   </div>
-                </div>
-                
-                {/* Controls */}
-                <div className="flex items-center justify-between mb-4 p-2 bg-gray-50 rounded">
-                  {/* Page Navigation */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage - 1)}
-                      disabled={currentPage <= 1}
-                    >
-                      <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <span className="text-sm min-w-20 text-center">
-                      {currentPage} / {totalPages}
-                    </span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handlePageChange(currentPage + 1)}
-                      disabled={currentPage >= totalPages}
-                    >
-                      <ChevronRight className="w-4 h-4" />
-                    </Button>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <div className="flex items-center gap-2">
+                      <Loader2 className="w-6 h-6 animate-spin" />
+                      <span>Initializing PDF viewer...</span>
+                    </div>
                   </div>
-                  
-                  {/* Zoom Controls */}
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleZoomChange(zoom - 25)}
-                    >
-                      <ZoomOut className="w-4 h-4" />
-                    </Button>
-                    <span className="text-sm min-w-12 text-center">{zoom}%</span>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleZoomChange(zoom + 25)}
-                    >
-                      <ZoomIn className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                
-                {/* PDF Content */}
-                <div className="bg-white border rounded overflow-auto max-h-96">
-                  <Document
-                    file={selectedFile}
-                    onLoadSuccess={onDocumentLoadSuccess}
-                    loading={<div className="flex items-center justify-center p-8"><Loader2 className="w-6 h-6 animate-spin mr-2" />Loading PDF...</div>}
-                    error={<div className="flex items-center justify-center p-8 text-red-500">Failed to load PDF</div>}
-                  >
-                    <Page 
-                      pageNumber={currentPage} 
-                      width={600 * (zoom / 100)}
-                      renderTextLayer={true}
-                      renderAnnotationLayer={true}
-                    />
-                  </Document>
-                </div>
-              </div>
-            )}
-            
-            {selectedFile && !isPdfReady && (
-              <div className="mt-4 border rounded p-4">
-                <div className="flex items-center justify-center p-8">
-                  <Loader2 className="w-6 h-6 animate-spin mr-2" />
-                  <span>Initializing PDF viewer...</span>
-                </div>
-              </div>
-            )}
-          </div>
+                )}
+              </TabsContent>
+            ))}
+          </Tabs>
         )}
       </div>
     </Card>
