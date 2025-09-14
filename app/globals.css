@@ -1,0 +1,129 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated to Claude's color palette with off-white background */
+  --background: #f4f3ee; /* Claude's signature off-white (Pampas) */
+  --foreground: #3d3929; /* Claude's text color */
+  --card: #ffffff; /* Clean white cards */
+  --card-foreground: #3d3929; /* Dark text on white cards */
+  --popover: #ffffff; /* White popovers */
+  --popover-foreground: #3d3929; /* Dark text on popovers */
+  --primary: #c15f3c; /* Claude's Crail accent color */
+  --primary-foreground: #ffffff; /* White text on primary */
+  --secondary: #b1ada1; /* Claude's Cloudy color */
+  --secondary-foreground: #3d3929; /* Dark text on secondary */
+  --muted: #b1ada1; /* Muted elements */
+  --muted-foreground: #6b6b6b; /* Muted text */
+  --accent: #da7756; /* Claude's terra cotta accent */
+  --accent-foreground: #ffffff; /* White text on accent */
+  --destructive: #dc2626; /* Keep destructive red */
+  --destructive-foreground: #ffffff; /* White text on destructive */
+  --border: #e5e5e5; /* Subtle borders */
+  --input: #ffffff; /* White input backgrounds */
+  --ring: #c15f3c; /* Focus ring matches primary */
+  --chart-1: #c15f3c; /* Chart colors using Claude palette */
+  --chart-2: #da7756;
+  --chart-3: #b1ada1;
+  --chart-4: #6b6b6b;
+  --chart-5: #3d3929;
+  --radius: 0.375rem; /* Slightly smaller radius for cleaner look */
+  --sidebar: #ffffff; /* White sidebar */
+  --sidebar-foreground: #3d3929; /* Dark text in sidebar */
+  --sidebar-primary: #c15f3c; /* Primary color in sidebar */
+  --sidebar-primary-foreground: #ffffff; /* White text on primary */
+  --sidebar-accent: #f4f3ee; /* Off-white accent in sidebar */
+  --sidebar-accent-foreground: #3d3929; /* Dark text on accent */
+  --sidebar-border: #e5e5e5; /* Subtle sidebar borders */
+  --sidebar-ring: #c15f3c; /* Focus ring in sidebar */
+}
+
+.dark {
+  /* Keep dark mode but adjust to complement Claude's aesthetic */
+  --background: #1a1a1a;
+  --foreground: #f0f0f0;
+  --card: #2a2a2a;
+  --card-foreground: #f0f0f0;
+  --popover: #2a2a2a;
+  --popover-foreground: #f0f0f0;
+  --primary: #c15f3c;
+  --primary-foreground: #ffffff;
+  --secondary: #3a3a3a;
+  --secondary-foreground: #f0f0f0;
+  --muted: #4a4a4a;
+  --muted-foreground: #a0a0a0;
+  --accent: #da7756;
+  --accent-foreground: #ffffff;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --border: #3a3a3a;
+  --input: #2a2a2a;
+  --ring: #c15f3c;
+  --chart-1: #c15f3c;
+  --chart-2: #da7756;
+  --chart-3: #b1ada1;
+  --chart-4: #a0a0a0;
+  --chart-5: #f0f0f0;
+  --sidebar: #2a2a2a;
+  --sidebar-foreground: #f0f0f0;
+  --sidebar-primary: #c15f3c;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #3a3a3a;
+  --sidebar-accent-foreground: #f0f0f0;
+  --sidebar-border: #4a4a4a;
+  --sidebar-ring: #c15f3c;
+}
+
+@theme inline {
+  /* Updated to use serif fonts like Claude */
+  --font-serif: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-sans: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-serif;
+  }
+}
